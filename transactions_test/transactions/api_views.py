@@ -13,6 +13,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 from transactions.constants import ACCEPTABLE_TRANSACTION
+from transactions.constants import CREDIT_TRANSACTION
+from transactions.constants import INVOICE_TRANSACTION
 from transactions.constants import SIMPLE_TRANSACTION
 from transactions.exceptions import BadRequest
 from transactions.models import Transaction
@@ -38,11 +40,40 @@ class TransactionViewSet(GenericViewSet, mixins.CreateModelMixin):
             return get_user_model().objects.get(pk=user_id)
         return None
 
+    def _get_transaction_queryset(self, pk):
+        return (
+            Transaction.objects.select_related("from_account")
+            .select_related("to_account")
+            .select_for_update()
+            .filter(pk=pk)
+        )
+
+    def _move_money(from_acc, to_acc, amount):
+        from_acc.balance = from_acc.balance - amount
+        to_acc.balance = to_acc.balance + amount
+
     def _accept_transaction(self, pk):
-        pass
+        transaction = self._get_transaction_queryset(pk)
+        if transaction.from_account.balance < transaction.amount:
+            return
+        self._move_money(
+            transaction.from_account, transaction.to_account, transaction.amount
+        )
+        transaction.processed = True
+        transaction.save()
 
     def _cancel_transaction(self, pk):
-        pass
+        transaction = self._get_transaction_queryset(pk)
+        if transaction.to_account.balance < transaction.amount:
+            return
+        self._move_money(
+            transaction.to_account, transaction.from_account, transaction.amount
+        )
+        transaction.canceled = True
+        transaction.save()
+
+    def _delete_transaction(self, pk):
+        Transaction.objects.filter(pk=pk).delete()
 
     def create(self, request, *args, **kwargs):
         """
@@ -50,7 +81,6 @@ class TransactionViewSet(GenericViewSet, mixins.CreateModelMixin):
         """
         serializer = CreateTransactionSerializer(data=request.data)
         if not serializer.is_valid():
-            print(serializer.errors)
             raise BadRequest("cant pass serilizer")
         data = serializer.validated_data
         from_account_obj = self._get_account(data.get("from_account"))
@@ -79,15 +109,11 @@ class TransactionViewSet(GenericViewSet, mixins.CreateModelMixin):
 
     @action(detail=True, methods=["post"])
     def accept(self, request, pk=None):
-        """
-        Для аккредитива и выставленного счета;
-        """
         transaction = get_object_or_404(Transaction.objects.filter(), pk=pk)
         if transaction.type_of_transaction not in ACCEPTABLE_TRANSACTION:
             raise BadRequest("Transcation cant be accept")
         if transaction.processed:
             raise BadRequest("Transcation allready processed")
-
         self._accept_transaction(pk)
         return Response(status=status.HTTP_202_ACCEPTED)
 
@@ -96,5 +122,17 @@ class TransactionViewSet(GenericViewSet, mixins.CreateModelMixin):
         transaction = get_object_or_404(Transaction.objects.filter(), pk=pk)
         if transaction.processed:
             raise BadRequest("Transcation allready processed")
+        if (
+            transaction.type_of_transaction in [SIMPLE_TRANSACTION, INVOICE_TRANSACTION]
+            and transaction.to_account.holder == request.user
+        ):
+            self._cancel_transaction(pk)
+        if (
+            transaction.type_of_transaction == CREDIT_TRANSACTION
+            and transaction.from_account.holder == request.user
+        ):
+            self._cancel_transaction(pk)
+            self._delete_transaction(pk)
+
         self._cancel_transaction(pk)
         return Response(status=status.HTTP_204_NO_CONTENT)
