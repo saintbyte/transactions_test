@@ -48,7 +48,7 @@ class TransactionViewSet(GenericViewSet, mixins.CreateModelMixin):
             .filter(pk=pk)
         )
 
-    def _move_money(from_acc, to_acc, amount):
+    def _move_money(self, from_acc, to_acc, amount):
         from_acc.balance = from_acc.balance - amount
         to_acc.balance = to_acc.balance + amount
 
