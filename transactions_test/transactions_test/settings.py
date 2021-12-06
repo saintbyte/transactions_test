@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "transactions",
+    "drf_yasg",
 ]
 
 MIDDLEWARE = [
@@ -127,15 +128,9 @@ STATIC_URL = "/static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-
-REDIS_HOST = "127.0.0.1"
-REDIS_PORT = "6379"
-REDIS_CELERY_DB = "0"
-CELERY_RESULT_DB = "0"
-
-
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
-CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{CELERY_RESULT_DB}"
-CELERY_ACCEPT_CONTENT = ["application/json"]
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TASK_SERIALIZER = "json"
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.BasicAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ]
+}

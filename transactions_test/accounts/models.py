@@ -9,9 +9,9 @@ class Account(models.Model):
     )
     name = models.CharField(max_length=128)
     is_active = models.BooleanField(default=False)
-    balance = models.DecimalField()
+    balance = models.DecimalField(max_digits=15, decimal_places=5, default=0)
 
-    def str(self):
+    def __str__(self):
         return self.name
 
     class Meta:
