@@ -37,6 +37,11 @@ class Transaction(models.Model):
     processed = models.BooleanField(
         default=False, verbose_name="Transaction WAS processed"
     )
+    canceled = models.BooleanField(
+        default=False,
+        verbose_name="Transaction CANCELED",
+        null=True,
+    )
     amount = models.DecimalField(
         max_digits=DECIMAL_MAX_DIGITS, decimal_places=DECIMAL_PLACES
     )
